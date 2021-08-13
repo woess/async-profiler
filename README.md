@@ -182,7 +182,7 @@ java -cp converter.jar MallocReport malloc.jfr malloc.html
 
 Generated Flame Graph will show those native allocations that have no corresponding `free` calls.
 
-![Malloc Profile](https://github.com/jvm-profiling-tools/async-profiler/blob/malloc/demo/flamegraph.png)
+![Malloc Profile](https://github.com/jvm-profiling-tools/async-profiler/blob/malloc/demo/malloc.png)
 
 The overhead of `nativemem` profiling depends on the number of native allocations,
 but is usually small enough even for production use. If required, the overhead can be reduced
