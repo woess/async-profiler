@@ -20,6 +20,7 @@ import one.jfr.event.AllocationSample;
 import one.jfr.event.ContendedLock;
 import one.jfr.event.Event;
 import one.jfr.event.ExecutionSample;
+import one.jfr.event.MallocEvent;
 
 import java.io.Closeable;
 import java.io.IOException;
@@ -66,6 +67,8 @@ public class JfrReader implements Closeable {
     private final int allocationOutsideTLAB;
     private final int monitorEnter;
     private final int threadPark;
+    private final int malloc;
+    private final int free;
 
     public JfrReader(String fileName) throws IOException {
         this.ch = FileChannel.open(Paths.get(fileName), StandardOpenOption.READ);
@@ -96,6 +99,8 @@ public class JfrReader implements Closeable {
         this.allocationOutsideTLAB = getTypeId("jdk.ObjectAllocationOutsideTLAB");
         this.monitorEnter = getTypeId("jdk.JavaMonitorEnter");
         this.threadPark = getTypeId("jdk.ThreadPark");
+        this.malloc = getTypeId("profiler.Malloc");
+        this.free = getTypeId("profiler.Free");
 
         buf.position(CHUNK_HEADER_SIZE);
     }
@@ -139,6 +144,10 @@ public class JfrReader implements Closeable {
                 if (cls == null || cls == ContendedLock.class) return (E) readContendedLock(false);
             } else if (type == threadPark) {
                 if (cls == null || cls == ContendedLock.class) return (E) readContendedLock(true);
+            } else if (type == malloc) {
+                if (cls == null || cls == MallocEvent.class) return (E) readMallocEvent(true);
+            } else if (type == free) {
+                if (cls == null || cls == MallocEvent.class) return (E) readMallocEvent(false);
             }
 
             buf.position(position + size);
@@ -173,6 +182,15 @@ public class JfrReader implements Closeable {
         if (hasTimeout) getVarlong();
         long address = getVarlong();
         return new ContendedLock(time, tid, stackTraceId, duration, classId);
+    }
+
+    private MallocEvent readMallocEvent(boolean hasSize) {
+        long time = getVarlong();
+        int tid = getVarint();
+        int stackTraceId = getVarint();
+        long address = getVarlong();
+        long size = hasSize ? getVarlong() : 0;
+        return new MallocEvent(time, tid, stackTraceId, address, size);
     }
 
     private void readMeta() {

@@ -154,6 +154,41 @@ where `getProperty` method is called from.
 Only non-native Java methods are supported. To profile a native method,
 use hardware breakpoint event instead, e.g. `-e Java_java_lang_Throwable_fillInStackTrace`
 
+## Finding native memory leaks
+
+A new experimental feature of async-profiler is to trace native memory allocations.
+
+Although it [was possible](https://stackoverflow.com/a/53598622/3448419) to profile
+`malloc` and `mmap` calls in Java context before, this was not always helpful.
+A large amount of allocations does not yet mean a leak, in case all the allocated memory
+is released on time.
+
+The new profiling mode `nativemem` records `malloc` and `free` calls
+with the addresses, so that later these calls can be matched with each other.
+This helps to focus only on unpaired allocations, which are the likely source
+of a memory leak.
+
+How to run:
+```
+LD_PRELOAD=/path/to/libasyncProfiler.so java -agentlib:asyncProfiler=start,event=nativemem,file=malloc.jfr <Your App>
+```
+
+Stop profiling at any time by `profiler.sh stop` command, or wait until the application exits.
+Then post-process the output using `MallocReport` tool included in the async-profiler bundle:
+
+```
+java -cp converter.jar MallocReport malloc.jfr malloc.html
+```
+
+Generated Flame Graph will show those native allocations that have no corresponding `free` calls.
+
+![Malloc Profile](https://github.com/jvm-profiling-tools/async-profiler/blob/malloc/demo/flamegraph.png)
+
+The overhead of `nativemem` profiling depends on the number of native allocations,
+but is usually small enough even for production use. If required, the overhead can be reduced
+by configuring the profiling interval. E.g. if you add `interval=1m` profiler option,
+allocation samples will be limited to at most one sample per allocated megabyte.
+
 ## Building
 
 Build status: [![Build Status](https://travis-ci.org/jvm-profiling-tools/async-profiler.svg?branch=master)](https://travis-ci.org/jvm-profiling-tools/async-profiler)

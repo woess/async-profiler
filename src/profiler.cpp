@@ -27,6 +27,7 @@
 #include "perfEvents.h"
 #include "allocTracer.h"
 #include "lockTracer.h"
+#include "mallocTracer.h"
 #include "wallClock.h"
 #include "instrument.h"
 #include "itimer.h"
@@ -49,6 +50,7 @@ static AllocTracer alloc_tracer;
 static LockTracer lock_tracer;
 static WallClock wall_clock;
 static ITimer itimer;
+static MallocTracer malloc_tracer;
 static Instrument instrument;
 
 
@@ -594,9 +596,9 @@ void Profiler::recordSample(void* ucontext, u64 counter, jint event_type, Event*
     }
 
     // Use engine stack walker for execution samples, or basic stack walker for other events
-    if (event_type == 0 && _cstack != CSTACK_NO) {
+    if (event_type > BCI_ALLOC && _cstack != CSTACK_NO) {
         num_frames += getNativeTrace(_engine, ucontext, frames + num_frames, tid);
-    } else if (event_type != 0 && _cstack > CSTACK_NO) {
+    } else if (event_type <= BCI_ALLOC && _cstack > CSTACK_NO) {
         num_frames += getNativeTrace(&noop_engine, ucontext, frames + num_frames, tid);
     }
 
@@ -606,7 +608,7 @@ void Profiler::recordSample(void* ucontext, u64 counter, jint event_type, Event*
         // Skip Instrument.recordSample() method
         int start_depth = event_type == BCI_INSTRUMENT ? 1 : 0;
         num_frames += getJavaTraceJvmti(jvmti_frames + num_frames, frames + num_frames, start_depth, _max_stack_depth);
-    } else if (event_type == 0 || VMStructs::_get_stack_trace == NULL) {
+    } else if (event_type >= BCI_MALLOC || VMStructs::_get_stack_trace == NULL) {
         // Async events
         num_frames += getJavaTraceAsync(ucontext, frames + num_frames, _max_stack_depth);
     } else {
@@ -633,6 +635,22 @@ void Profiler::recordSample(void* ucontext, u64 counter, jint event_type, Event*
 
     u32 call_trace_id = _call_trace_storage.put(num_frames, frames, counter);
     _jfr.recordEvent(lock_index, tid, call_trace_id, event_type, event, counter);
+
+    _locks[lock_index].unlock();
+}
+
+void Profiler::recordEventOnly(jint event_type, Event* event) {
+    int tid = OS::threadId();
+    u32 lock_index = getLockIndex(tid);
+    if (!_locks[lock_index].tryLock() &&
+        !_locks[lock_index = (lock_index + 1) % CONCURRENCY_LEVEL].tryLock() &&
+        !_locks[lock_index = (lock_index + 2) % CONCURRENCY_LEVEL].tryLock())
+    {
+        // Too many concurrent signals already
+        return;
+    }
+
+    _jfr.recordEvent(lock_index, tid, 0, event_type, event, 0);
 
     _locks[lock_index].unlock();
 }
@@ -889,6 +907,8 @@ Engine* Profiler::selectEngine(const char* event_name) {
         return &wall_clock;
     } else if (strcmp(event_name, EVENT_ITIMER) == 0) {
         return &itimer;
+    } else if (strcmp(event_name, EVENT_MALLOC) == 0) {
+        return &malloc_tracer;
     } else if (strchr(event_name, '.') != NULL && strchr(event_name, ':') == NULL) {
         return &instrument;
     } else {
