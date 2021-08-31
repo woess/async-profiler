@@ -23,6 +23,7 @@ import one.jfr.event.Event;
 import one.jfr.event.EventAggregator;
 import one.jfr.event.MallocEvent;
 
+import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
 import java.util.HashMap;
@@ -46,7 +47,7 @@ public class MallocReport {
         this.jfr = jfr;
     }
 
-    public void convert(final FlameGraph fg, final boolean threads, final boolean total) {
+    public void convert(final FlameGraph fg, final boolean threads, final boolean total) throws IOException {
         Map<Long, MallocEvent> addresses = new HashMap<>();
 
         // Read all events to sort them in chronological order
@@ -80,11 +81,11 @@ public class MallocReport {
 
                     String[] trace = new String[methods.length - skip + (threads ? 1 : 0)];
                     if (threads) {
-                        trace[0] = MallocReport.this.getThreadFrame(event.tid);
+                        trace[0] = getThreadFrame(event.tid);
                     }
                     int idx = trace.length;
                     for (int i = skip; i < methods.length; i++) {
-                        trace[--idx] = MallocReport.this.getMethodName(methods[i], types[i]);
+                        trace[--idx] = getMethodName(methods[i], types[i]);
                     }
                     fg.addSample(trace, value);
                 }
@@ -104,17 +105,21 @@ public class MallocReport {
         }
 
         MethodRef method = jfr.methods.get(methodId);
-        ClassRef cls = jfr.classes.get(method.cls);
-        byte[] className = jfr.symbols.get(cls.name);
-        byte[] methodName = jfr.symbols.get(method.name);
-
-        if (className == null || className.length == 0) {
-            String methodStr = new String(methodName, StandardCharsets.UTF_8);
-            result = type == FRAME_KERNEL ? methodStr + "_[k]" : methodStr;
+        if (method == null) {
+            result = "unknown";
         } else {
-            String classStr = new String(className, StandardCharsets.UTF_8);
-            String methodStr = new String(methodName, StandardCharsets.UTF_8);
-            result = classStr + '.' + methodStr + "_[j]";
+            ClassRef cls = jfr.classes.get(method.cls);
+            byte[] className = jfr.symbols.get(cls.name);
+            byte[] methodName = jfr.symbols.get(method.name);
+
+            if (className == null || className.length == 0) {
+                String methodStr = new String(methodName, StandardCharsets.UTF_8);
+                result = type == FRAME_KERNEL ? methodStr + "_[k]" : methodStr;
+            } else {
+                String classStr = new String(className, StandardCharsets.UTF_8);
+                String methodStr = new String(methodName, StandardCharsets.UTF_8);
+                result = classStr + '.' + methodStr + "_[j]";
+            }
         }
 
         methodNames.put(methodId, result);
