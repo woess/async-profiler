@@ -21,6 +21,7 @@ import java.util.List;
 import java.util.regex.Pattern;
 
 public class Suite {
+    public static final String DEBUG_NON_SAFEPOINTS = "-XX:+UnlockDiagnosticVMOptions -XX:+DebugNonSafepoints";
 
     public static TestProcess runJava(Class<?> mainClass, String jvmArgs) throws IOException {
         return new TestProcess(mainClass.getName(), jvmArgs);
@@ -33,5 +34,31 @@ public class Suite {
     public static boolean contains(List<String> output, String regex) {
         Pattern pattern = Pattern.compile(regex);
         return output.stream().anyMatch(s -> pattern.matcher(s).find());
+    }
+
+    public static long samples(List<String> output, String regex) {
+        Pattern pattern = Pattern.compile(regex);
+        return output.stream()
+                .filter(s -> pattern.matcher(s).find())
+                .mapToLong(Suite::extractSamples)
+                .sum();
+    }
+
+    public static double ratio(List<String> output, String regex) {
+        Pattern pattern = Pattern.compile(regex);
+        long total = 0;
+        long match = 0;
+        for (String s : output) {
+            long samples = extractSamples(s);
+            total += samples;
+            if (pattern.matcher(s).find()) {
+                match += samples;
+            }
+        }
+        return (double) match / total;
+    }
+
+    private static long extractSamples(String s) {
+        return Long.parseLong(s.substring(s.lastIndexOf(' ') + 1));
     }
 }

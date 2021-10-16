@@ -6,7 +6,7 @@ import one.profiler.test.TestProcess;
 
 import java.util.List;
 
-public class SmokeTest extends Suite {
+public class SmokeSuite extends Suite {
 
     @Test
     public static void cpu() throws Exception {
@@ -46,7 +46,6 @@ public class SmokeTest extends Suite {
             assert contains(output, "Java_sun_management");
         }
     }
-
 
     public static void main(String[] args) throws Exception {
         cpu();
