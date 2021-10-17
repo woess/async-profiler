@@ -150,10 +150,17 @@ public class TestProcess implements AutoCloseable {
     }
 
     public List<String> profile(String args) throws IOException, TimeoutException, InterruptedException {
+        return profile(args, false);
+    }
+
+    public List<String> profile(String args, boolean sudo) throws IOException, TimeoutException, InterruptedException {
         // Give JVM process some time to initialize
         Thread.sleep(100);
 
         List<String> cmd = new ArrayList<>();
+        if (sudo) {
+            cmd.add("/usr/bin/sudo");
+        }
         cmd.add("/bin/sh");
         cmd.add("profiler.sh");
         addArgs(cmd, args);
