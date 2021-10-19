@@ -25,21 +25,22 @@ import java.lang.invoke.MethodType;
 import java.lang.reflect.Field;
 import java.nio.file.Files;
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.StringTokenizer;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
+import java.util.logging.Level;
 import java.util.logging.Logger;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+import java.util.stream.Stream;
 
 public class TestProcess implements AutoCloseable {
     private static final Logger log = Logger.getLogger(TestProcess.class.getName());
 
-    private static final Pattern filePattern = Pattern.compile("%[a-z]+");
+    private static final Pattern filePattern = Pattern.compile("(%[a-z]+)(\\.[a-z]+)?");
 
     private static final MethodHandle pid = getPidHandle();
 
@@ -63,20 +64,33 @@ public class TestProcess implements AutoCloseable {
 
     private final Process p;
     private final Map<String, File> tmpFiles = new HashMap<>();
-    private int timeout = 30;
+    private final int timeout = 30;
 
-    public TestProcess(String mainClass, String jvmArgs) throws IOException {
+    public TestProcess(Test test) throws IOException {
         List<String> cmd = new ArrayList<>();
         cmd.add(System.getProperty("java.home") + "/bin/java");
         cmd.add("-cp");
         cmd.add(System.getProperty("java.class.path"));
-        addArgs(cmd, jvmArgs);
-        cmd.add(mainClass);
+        if (test.debugNonSafepoints()) {
+            cmd.add("-XX:+UnlockDiagnosticVMOptions");
+            cmd.add("-XX:+DebugNonSafepoints");
+        }
+        addArgs(cmd, test.jvmArgs());
+        if (!test.agentArgs().isEmpty()) {
+            cmd.add("-agentpath:build/libasyncProfiler.so=" + substituteFiles(test.agentArgs()));
+        }
+        cmd.add(test.mainClass().getName());
+        addArgs(cmd, test.args());
         log.info("Running " + cmd);
 
-        this.p = new ProcessBuilder(cmd)
-                .inheritIO()
-                .start();
+        ProcessBuilder pb = new ProcessBuilder(cmd).inheritIO();
+        if (test.output()) {
+            pb.redirectOutput(createTempFile("%out", null));
+        }
+        if (test.error()) {
+            pb.redirectError(createTempFile("%err", null));
+        }
+        this.p = pb.start();
     }
 
     private void addArgs(List<String> cmd, String args) {
@@ -96,7 +110,7 @@ public class TestProcess implements AutoCloseable {
 
         StringBuffer sb = new StringBuffer();
         do {
-            File f = createTempFile(m.group());
+            File f = createTempFile(m.group(1), m.group(2));
             m.appendReplacement(sb, f.toString());
         } while (m.find());
 
@@ -104,25 +118,33 @@ public class TestProcess implements AutoCloseable {
         return sb.toString();
     }
 
-    private File createTempFile(String id) {
+    private File createTempFile(String fileId, String suffix) {
         try {
-            File f = File.createTempFile("ap-" + id.substring(1), ".tmp");
-            tmpFiles.put(id, f);
+            File f = File.createTempFile("ap-" + fileId.substring(1), suffix);
+            tmpFiles.put(fileId, f);
             return f;
         } catch (IOException e) {
             throw new UncheckedIOException(e);
         }
     }
 
+    private void clearTempFiles() {
+        for (File file : tmpFiles.values()) {
+            file.delete();
+        }
+    }
+
     @Override
-    public void close() throws TimeoutException, InterruptedException {
+    public void close() {
         p.destroy();
         try {
             waitForExit(p, 5);
+        } catch (TimeoutException e) {
+            log.log(Level.WARNING, "Failed to terminate child process", e);
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
         } finally {
-            for (File file : tmpFiles.values()) {
-                 file.delete();
-            }
+            clearTempFiles();
         }
     }
 
@@ -134,12 +156,9 @@ public class TestProcess implements AutoCloseable {
         }
     }
 
-    public void setTimeout(int timeout) {
-        this.timeout = timeout;
-    }
-
-    public void waitForExit() throws TimeoutException, InterruptedException {
+    public Output waitForExit(String fileId) throws TimeoutException, InterruptedException {
         waitForExit(p, timeout);
+        return readFile(fileId);
     }
 
     private void waitForExit(Process p, int seconds) throws TimeoutException, InterruptedException {
@@ -149,11 +168,11 @@ public class TestProcess implements AutoCloseable {
         }
     }
 
-    public List<String> profile(String args) throws IOException, TimeoutException, InterruptedException {
+    public Output profile(String args) throws IOException, TimeoutException, InterruptedException {
         return profile(args, false);
     }
 
-    public List<String> profile(String args, boolean sudo) throws IOException, TimeoutException, InterruptedException {
+    public Output profile(String args, boolean sudo) throws IOException, TimeoutException, InterruptedException {
         // Give JVM process some time to initialize
         Thread.sleep(100);
 
@@ -168,21 +187,21 @@ public class TestProcess implements AutoCloseable {
         log.info("Profiling " + cmd);
 
         Process p = new ProcessBuilder(cmd)
-                .redirectOutput(createTempFile("%out"))
-                .redirectError(createTempFile("%err"))
+                .redirectOutput(createTempFile("%pout", null))
+                .redirectError(createTempFile("%perr", null))
                 .start();
 
         waitForExit(p, timeout);
 
-        return readFile("%out");
+        return readFile("%pout");
     }
 
-    public List<String> readFile(String id) {
-        try {
-            File f = tmpFiles.get(id);
-            return Files.readAllLines(f.toPath());
+    public Output readFile(String fileId) {
+        File f = tmpFiles.get(fileId);
+        try (Stream<String> stream = Files.lines(f.toPath())) {
+            return new Output(stream.toArray(String[]::new));
         } catch (IOException e) {
-            return Collections.emptyList();
+            return new Output(new String[0]);
         }
     }
 }
