@@ -8,6 +8,7 @@ LIB_PROFILER_SO=libasyncProfiler.so
 JATTACH=jattach
 API_JAR=async-profiler.jar
 CONVERTER_JAR=converter.jar
+TEST_JAR=test.jar
 
 CFLAGS=-O3
 CXXFLAGS=-O3 -fno-omit-frame-pointer -fvisibility=hidden
@@ -23,6 +24,8 @@ HEADERS := $(wildcard src/*.h src/fdtransfer/*.h)
 JAVA_HEADERS := $(patsubst %.java,%.class.h,$(wildcard src/helper/one/profiler/*.java))
 API_SOURCES := $(wildcard src/api/one/profiler/*.java)
 CONVERTER_SOURCES := $(shell find src/converter -name '*.java')
+TEST_SOURCES := $(shell find test -name '*.java')
+TESTS=$(shell ls test/test)
 
 ifeq ($(JAVA_HOME),)
   export JAVA_HOME:=$(shell java -cp . JavaHome)
@@ -125,13 +128,13 @@ build/fdtransfer: src/fdtransfer/*.cpp src/fdtransfer/*.h src/jattach/psutil.c s
 build/$(API_JAR): $(API_SOURCES)
 	mkdir -p build/api
 	$(JAVAC) -source $(JAVAC_RELEASE_VERSION) -target $(JAVAC_RELEASE_VERSION) -d build/api $^
-	$(JAR) cvf $@ -C build/api .
+	$(JAR) cf $@ -C build/api .
 	$(RM) -r build/api
 
 build/$(CONVERTER_JAR): $(CONVERTER_SOURCES) src/converter/MANIFEST.MF
 	mkdir -p build/converter
 	$(JAVAC) -source 7 -target 7 -d build/converter $(CONVERTER_SOURCES)
-	$(JAR) cvfm $@ src/converter/MANIFEST.MF -C build/converter .
+	$(JAR) cfm $@ src/converter/MANIFEST.MF -C build/converter .
 	$(RM) -r build/converter
 
 %.class.h: %.class
@@ -140,13 +143,13 @@ build/$(CONVERTER_JAR): $(CONVERTER_SOURCES) src/converter/MANIFEST.MF
 %.class: %.java
 	$(JAVAC) -g:none -source $(JAVAC_RELEASE_VERSION) -target $(JAVAC_RELEASE_VERSION) $(*D)/*.java
 
-test: all
-	test/smoke-test.sh
-	test/thread-smoke-test.sh
-	test/alloc-smoke-test.sh
-	test/load-library-test.sh
-	test/fdtransfer-smoke-test.sh
-	echo "All tests passed"
+test: all build/$(TEST_JAR)
+	java -cp "build/*" one.profiler.test.Runner $(TESTS)
+
+build/$(TEST_JAR): $(TEST_SOURCES)
+	mkdir -p build/test
+	$(JAVAC) -source 8 -target 8 -cp "build/*" -d build/test $(TEST_SOURCES)
+	$(JAR) cf $@ -C build/test .
 
 clean:
 	$(RM) -r build
