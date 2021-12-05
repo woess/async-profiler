@@ -227,7 +227,7 @@ const void* Profiler::resolveSymbol(const char* name) {
 
 // For BCI_NATIVE_FRAME, library index is encoded ahead of the symbol name 
 const char* Profiler::getLibraryName(const char* native_symbol) {
-    short lib_index = *(short*)(native_symbol - LIB_INDEX_OFFSET);
+    short lib_index = NativeFunc::libIndex(native_symbol);
     if (lib_index >= 0 && lib_index < _native_lib_count) {
         const char* s = _native_libs[lib_index]->name();
         if (s != NULL) {
@@ -278,7 +278,14 @@ int Profiler::getNativeTrace(Engine* engine, void* ucontext, ASGCT_CallFrame* fr
     jmethodID prev_method = NULL;
 
     for (int i = 0; i < native_frames; i++) {
-        jmethodID current_method = (jmethodID)findNativeMethod(native_callchain[i]);
+        const char* current_method_name = findNativeMethod(native_callchain[i]);
+        if (current_method_name != NULL && NativeFunc::isMarked(current_method_name)) {
+            // This is C++ interpreter frame, this and later frames should be reported
+            // as Java frames returned by AGCT. Terminate the scan here.
+            return depth;
+        }
+
+        jmethodID current_method = (jmethodID)current_method_name;
         if (current_method == prev_method && _cstack == CSTACK_LBR) {
             // Skip duplicates in LBR stack, where branch_stack[N].from == branch_stack[N+1].to
             prev_method = NULL;
@@ -999,8 +1006,6 @@ Error Profiler::start(Arguments& args, bool reset) {
         }
     }
 
-    updateSymbols(args._ring != RING_USER);
-
     _safe_mode = args._safe_mode;
     if (VM::hotspot_version() < 8) {
         // Cannot use JVM TI stack walker during GC on non-HotSpot JVMs or with PermGen
@@ -1017,6 +1022,9 @@ Error Profiler::start(Arguments& args, bool reset) {
     if (_cstack == CSTACK_LBR && _engine != &perf_events) {
         return Error("Branch stack is supported only with PMU events");
     }
+
+    // Kernel symbols are useful only for perf_events without --all-user
+    updateSymbols(_engine == &perf_events && args._ring != RING_USER);
 
     error = installTraps(args._begin, args._end);
     if (error) {
