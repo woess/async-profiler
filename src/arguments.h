@@ -86,6 +86,7 @@ enum SHORT_ENUM Output {
     OUTPUT_SVG,  // obsolete
     OUTPUT_COLLAPSED,
     OUTPUT_FLAMEGRAPH,
+    OUTPUT_JSON,
     OUTPUT_TREE,
     OUTPUT_JFR
 };

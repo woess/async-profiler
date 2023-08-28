@@ -1277,6 +1277,9 @@ Error Profiler::dump(std::ostream& out, Arguments& args) {
         case OUTPUT_FLAMEGRAPH:
             dumpFlameGraph(out, args, false);
             break;
+        case OUTPUT_JSON:
+            dumpFlameGraph(out, args, false);
+            break;
         case OUTPUT_TREE:
             dumpFlameGraph(out, args, true);
             break;
@@ -1423,7 +1426,7 @@ void Profiler::dumpFlameGraph(std::ostream& out, Arguments& args, bool tree) {
         f->addLeaf(counter);
     }
 
-    flamegraph.dump(out, tree);
+    flamegraph.dump(out, tree, args._output == OUTPUT_JSON);
 }
 
 void Profiler::dumpText(std::ostream& out, Arguments& args) {

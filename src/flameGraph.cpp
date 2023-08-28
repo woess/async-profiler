@@ -86,7 +86,7 @@ class Node {
 };
 
 
-void FlameGraph::dump(std::ostream& out, bool tree) {
+void FlameGraph::dump(std::ostream& out, bool tree, bool json) {
     _mintotal = _minwidth == 0 && tree ? _root._total / 1000 : (u64)(_root._total * _minwidth / 100);
     int depth = _root.depth(_mintotal);
 
@@ -107,6 +107,8 @@ void FlameGraph::dump(std::ostream& out, bool tree) {
         printTreeFrame(out, _root, 0);
 
         out << tail;
+    } else if (json) {
+        printJsonFrame(out, "all", _root, 0);
     } else {
         const char* tail = FLAMEGRAPH_TEMPLATE;
 
@@ -152,6 +154,32 @@ void FlameGraph::printFrame(std::ostream& out, const std::string& name, const Tr
             printFrame(out, it->first, it->second, level + 1, x);
         }
         x += it->second._total;
+    }
+}
+
+void FlameGraph::printJsonFrame(std::ostream& out, const std::string& name, const Trie& f, int level) {
+    std::string name_copy = name;
+    int type = frameType(name_copy, f);
+    StringUtils::replace(name_copy, '"', "\\\"", 2);
+
+    snprintf(_buf, sizeof(_buf) - 1, "{\"name\":\"%s\",\"type\":%d,\"self\":%llu,\"total\":%llu", name_copy.c_str(), type, f._self, f._total);
+    out << _buf;
+    if (f._inlined)     { snprintf(_buf, sizeof(_buf) - 1, ",\"inln\":%llu", f._inlined    ); out << _buf; }
+    if (f._c1_compiled) { snprintf(_buf, sizeof(_buf) - 1, ",\"c1\":%llu",   f._c1_compiled); out << _buf; }
+    if (f._interpreted) { snprintf(_buf, sizeof(_buf) - 1, ",\"int\":%llu",  f._interpreted); out << _buf; }
+
+    if (f._children.empty()) {
+        out << "}";
+    } else {
+        out << ",\"ch\":[\n";
+        bool comma = false;
+        for (std::map<std::string, Trie>::const_iterator it = f._children.begin(); it != f._children.end(); ++it) {
+            if (it->second._total >= _mintotal) {
+                if (comma) out << ",\n"; else comma = true;
+                printJsonFrame(out, it->first, it->second, level + 1);
+            }
+        }
+        out << "]}";
     }
 }
 

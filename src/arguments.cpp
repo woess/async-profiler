@@ -169,6 +169,9 @@ Error Arguments::parse(const char* args) {
             CASE("flamegraph")
                 _output = OUTPUT_FLAMEGRAPH;
 
+            CASE("json")
+                _output = OUTPUT_JSON;
+
             CASE("tree")
                 _output = OUTPUT_TREE;
 
@@ -506,6 +509,8 @@ Output Arguments::detectOutputFormat(const char* file) {
     if (ext != NULL) {
         if (strcmp(ext, ".html") == 0) {
             return OUTPUT_FLAMEGRAPH;
+        } else if (strcmp(ext, ".json") == 0) {
+            return OUTPUT_JSON;
         } else if (strcmp(ext, ".jfr") == 0) {
             return OUTPUT_JFR;
         } else if (strcmp(ext, ".collapsed") == 0 || strcmp(ext, ".folded") == 0) {

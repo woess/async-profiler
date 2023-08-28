@@ -81,6 +81,7 @@ class FlameGraph {
     bool _reverse;
 
     void printFrame(std::ostream& out, const std::string& name, const Trie& f, int level, u64 x);
+    void printJsonFrame(std::ostream& out, const std::string& name, const Trie& f, int level);
     void printTreeFrame(std::ostream& out, const Trie& f, int level);
     const char* printTill(std::ostream& out, const char* data, const char* till);
     int frameType(std::string& name, const Trie& f);
@@ -99,7 +100,7 @@ class FlameGraph {
         return &_root;
     }
 
-    void dump(std::ostream& out, bool tree);
+    void dump(std::ostream& out, bool tree, bool json);
 };
 
 #endif // _FLAMEGRAPH_H
