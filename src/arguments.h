@@ -73,7 +73,8 @@ enum SHORT_ENUM CStack {
     CSTACK_FP,
     CSTACK_DWARF,
     CSTACK_LBR,
-    CSTACK_VM
+    CSTACK_VM,
+    CSTACK_FLAT
 };
 
 enum SHORT_ENUM Clock {

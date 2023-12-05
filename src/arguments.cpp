@@ -96,7 +96,7 @@ static const Multiplier UNIVERSAL[] = {{'n', 1}, {'u', 1000}, {'m', 1000000}, {'
 //     threads          - profile different threads separately
 //     sched            - group threads by scheduling policy
 //     cstack=MODE      - how to collect C stack frames in addition to Java stack
-//                        MODE is 'fp', 'dwarf', 'lbr', 'vm' or 'no'
+//                        MODE is 'fp', 'dwarf', 'lbr', 'vm', 'flat' or 'no'
 //     clock=SOURCE     - clock source for JFR timestamps: 'tsc' or 'monotonic'
 //     allkernel        - include only kernel-mode events
 //     alluser          - include only user-mode events
@@ -343,7 +343,7 @@ Error Arguments::parse(const char* args) {
                         case 'd': _cstack = CSTACK_DWARF; break;
                         case 'l': _cstack = CSTACK_LBR;   break;
                         case 'v': _cstack = CSTACK_VM;    break;
-                        default:  _cstack = CSTACK_FP;
+                        default:  _cstack = (strcmp(value, "flat") == 0) ? CSTACK_FLAT : CSTACK_FP;
                     }
                 }
 
@@ -413,7 +413,7 @@ Error Arguments::parse(const char* args) {
         if (_output == OUTPUT_SVG) {
             return Error("SVG format is obsolete, use .html for FlameGraph");
         }
-        _dump_traces = 100;
+        _dump_traces = _cstack == CSTACK_FLAT ? 0 : 100;
         _dump_flat = 200;
     }
 

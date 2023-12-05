@@ -38,6 +38,7 @@ class StackWalker {
     static int walkFP(void* ucontext, const void** callchain, int max_depth, StackContext* java_ctx);
     static int walkDwarf(void* ucontext, const void** callchain, int max_depth, StackContext* java_ctx);
     static int walkVM(void* ucontext, ASGCT_CallFrame* frames, int max_depth);
+    static int flat(void* ucontext, ASGCT_CallFrame* frames);
 
     static void checkFault();
 };

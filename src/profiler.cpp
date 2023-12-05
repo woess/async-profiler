@@ -655,34 +655,38 @@ u64 Profiler::recordSample(void* ucontext, u64 counter, EventType event_type, Ev
         num_frames = makeFrame(frames, frame_type, event->id());
     }
 
-    StackContext java_ctx = {0};
-    num_frames += getNativeTrace(ucontext, frames + num_frames, event_type, tid, &java_ctx);
-
-    if (_cstack == CSTACK_VM) {
-        num_frames += StackWalker::walkVM(ucontext, frames + num_frames, _max_stack_depth);
-    } else if (event_type <= EXECUTION_SAMPLE) {
-        // Async events
-        int java_frames = getJavaTraceAsync(ucontext, frames + num_frames, _max_stack_depth, &java_ctx);
-        if (java_frames > 0 && java_ctx.pc != NULL && VMStructs::hasMethodStructs()) {
-            NMethod* nmethod = CodeHeap::findNMethod(java_ctx.pc);
-            if (nmethod != NULL) {
-                fillFrameTypes(frames + num_frames, java_frames, nmethod);
-            }
-        }
-        num_frames += java_frames;
-    } else if (event_type >= ALLOC_SAMPLE && event_type <= ALLOC_OUTSIDE_TLAB && _alloc_engine == &alloc_tracer) {
-        if (VMStructs::_get_stack_trace != NULL) {
-            // Object allocation in HotSpot happens at known places where it is safe to call JVM TI,
-            // but not directly, since the thread is in_vm rather than in_native
-            num_frames += getJavaTraceInternal(jvmti_frames + num_frames, frames + num_frames, _max_stack_depth);
-        } else {
-            num_frames += getJavaTraceAsync(ucontext, frames + num_frames, _max_stack_depth, &java_ctx);
-        }
+    if (_cstack == CSTACK_FLAT) {
+        num_frames += StackWalker::flat(ucontext, frames + num_frames);
     } else {
-        // Lock events and instrumentation events can safely call synchronous JVM TI stack walker.
-        // Skip Instrument.recordSample() method
-        int start_depth = event_type == INSTRUMENTED_METHOD ? 1 : 0;
-        num_frames += getJavaTraceJvmti(jvmti_frames + num_frames, frames + num_frames, start_depth, _max_stack_depth);
+        StackContext java_ctx = {0};
+        num_frames += getNativeTrace(ucontext, frames + num_frames, event_type, tid, &java_ctx);
+
+        if (_cstack == CSTACK_VM) {
+            num_frames += StackWalker::walkVM(ucontext, frames + num_frames, _max_stack_depth);
+        } else if (event_type <= EXECUTION_SAMPLE) {
+            // Async events
+            int java_frames = getJavaTraceAsync(ucontext, frames + num_frames, _max_stack_depth, &java_ctx);
+            if (java_frames > 0 && java_ctx.pc != NULL && VMStructs::hasMethodStructs()) {
+                NMethod* nmethod = CodeHeap::findNMethod(java_ctx.pc);
+                if (nmethod != NULL) {
+                    fillFrameTypes(frames + num_frames, java_frames, nmethod);
+                }
+            }
+            num_frames += java_frames;
+        } else if (event_type >= ALLOC_SAMPLE && event_type <= ALLOC_OUTSIDE_TLAB && _alloc_engine == &alloc_tracer) {
+            if (VMStructs::_get_stack_trace != NULL) {
+                // Object allocation in HotSpot happens at known places where it is safe to call JVM TI,
+                // but not directly, since the thread is in_vm rather than in_native
+                num_frames += getJavaTraceInternal(jvmti_frames + num_frames, frames + num_frames, _max_stack_depth);
+            } else {
+                num_frames += getJavaTraceAsync(ucontext, frames + num_frames, _max_stack_depth, &java_ctx);
+            }
+        } else {
+            // Lock events and instrumentation events can safely call synchronous JVM TI stack walker.
+            // Skip Instrument.recordSample() method
+            int start_depth = event_type == INSTRUMENTED_METHOD ? 1 : 0;
+            num_frames += getJavaTraceJvmti(jvmti_frames + num_frames, frames + num_frames, start_depth, _max_stack_depth);
+        }
     }
 
     if (num_frames == 0) {

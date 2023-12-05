@@ -452,7 +452,7 @@ $ asprof -d 30 -f /tmp/flamegraph.html 8983
 * `--cstack MODE` - how to walk native frames (C stack). Possible modes are
   `fp` (Frame Pointer), `dwarf` (DWARF unwind info),
   `lbr` (Last Branch Record, available on Haswell since Linux 4.1),
-  `vm` (HotSpot VM Structs) and `no` (do not collect C stack).
+  `vm` (HotSpot VM Structs), `flat` (top frame only) and `no` (do not collect C stack).
 
   By default, C stack is shown in cpu, itimer, wall-clock and perf-events profiles.
   Java-level events like `alloc` and `lock` collect only Java stack.

@@ -328,7 +328,7 @@ int StackWalker::walkVM(void* ucontext, ASGCT_CallFrame* frames, int max_depth) 
                 CodeBlob* stub = profiler->findRuntimeStub(pc);
                 const void* start = stub != NULL ? stub->_start : nm->code();
                 const char* name = stub != NULL ? stub->_name : nm->name();
-                fillFrame(frames[depth++], BCI_NATIVE_FRAME, name);
+                fillFrame(frames[depth++], BCI_NATIVE_FRAME, name);  // FIXME: BCI_ERROR?
 
                 if (frame.unwindStub((instruction_t*)start, name, (uintptr_t&)pc, sp, fp)) {
                     continue;
@@ -408,6 +408,27 @@ int StackWalker::walkVM(void* ucontext, ASGCT_CallFrame* frames, int max_depth) 
     if (vm_thread != NULL) vm_thread->exception() = saved_exception;
 
     return depth;
+}
+
+int StackWalker::flat(void* ucontext, ASGCT_CallFrame* frames) {
+    const void* pc = ucontext != NULL ? (const void*)StackFrame(ucontext).pc() : __builtin_return_address(0);
+
+    if (CodeHeap::contains(pc)) {
+        NMethod* nm = CodeHeap::findNMethod(pc);
+        if (nm == NULL) {
+            fillFrame(frames[0], BCI_ERROR, "unknown_nmethod");
+        } else if (nm->isNMethod()) {
+            int level = nm->level();
+            FrameTypeId type = level >= 1 && level <= 3 ? FRAME_C1_COMPILED : FRAME_JIT_COMPILED;
+            fillFrame(frames[0], type, 0, nm->method()->id());
+        } else {
+            fillFrame(frames[0], BCI_ERROR, nm->name());
+        }
+    } else {
+        fillFrame(frames[0], BCI_ERROR, "native");
+    }
+
+    return 1;
 }
 
 void StackWalker::checkFault() {
