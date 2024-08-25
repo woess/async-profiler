@@ -54,6 +54,7 @@ class VMStructs {
     static int _data_offset;
     static int _scopes_pcs_offset;
     static int _scopes_data_offset;
+    static int _nmethod_size;
     static int _nmethod_name_offset;
     static int _nmethod_method_offset;
     static int _nmethod_entry_offset;
@@ -61,6 +62,7 @@ class VMStructs {
     static int _nmethod_level_offset;
     static int _nmethod_metadata_offset;
     static int _nmethod_immutable_offset;
+    static int _nmethod_jvmci_data_offset;
     static int _method_constmethod_offset;
     static int _method_code_offset;
     static int _constmethod_constants_offset;
@@ -386,6 +388,35 @@ class VMMethod : VMStructs {
     }
 };
 
+class JVMCINMethodData : VMStructs {
+    // Is HotSpotNmethod.name non-null? If so, the value is
+    // embedded in the end of this object.
+    bool _has_name;
+
+    // Index for the HotSpotNmethod mirror in the nmethod's oops table.
+    // This is -1 if there is no mirror in the oops table.
+    int _nmethod_mirror_index;
+
+    // This is the offset of the patchable part of the nmethod entry barrier sequence. The meaning is
+    // somewhat platform dependent as the way patching is done varies by architecture.
+    int _nmethod_entry_patch_offset;
+
+    // Address of the failed speculations list to which a speculation
+    // is appended when it causes a deoptimization.
+    intptr_t /* FailedSpeculation** */ _failed_speculations;
+
+public:
+    // Gets the JVMCI name of the nmethod (which may be null).
+    const char* name() const {
+        return _has_name ? (const char*)(((const char*) this) + sizeof(JVMCINMethodData)) : nullptr;
+    }
+
+    // Checks if this JVMCINMethodData has a name.
+    bool has_name() const {
+        return _has_name;
+    }
+};
+
 class NMethod : VMStructs {
   public:
     int frameSize() {
@@ -482,6 +513,30 @@ class NMethod : VMStructs {
     }
 
     int findScopeOffset(const void* pc);
+
+    int getCodeBlobDataOffset() {
+        return *(int*) at(_data_offset);
+    }
+
+    uint16_t getCodeBlobSize() {
+        return *(uint16_t*) at(_nmethod_size);
+    }
+
+    uint16_t getJVMCIDataOffset() {
+        return _nmethod_jvmci_data_offset >= 0 ? *(uint16_t*) at(_nmethod_jvmci_data_offset) : 0;
+    }
+
+    int getJVMCIDataSize() {
+        return getCodeBlobSize() - (getCodeBlobDataOffset() + getJVMCIDataOffset());
+    }
+
+    bool hasJVMCINMethodData() {
+        return getJVMCIDataOffset() > 0 && getJVMCIDataSize() >= sizeof(JVMCINMethodData);
+    }
+
+    JVMCINMethodData* getJVMCINMethodData() {
+        return (JVMCINMethodData*) at(getCodeBlobDataOffset() + getJVMCIDataOffset());
+    }
 };
 
 class CodeHeap : VMStructs {

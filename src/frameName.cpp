@@ -291,6 +291,9 @@ const char* FrameName::name(ASGCT_CallFrame& frame, bool for_matching) {
         case BCI_ERROR:
             return _str.assign("[").append((const char*)frame.method_id).append("]").c_str();
 
+        case BCI_TRUFFLE:
+            return _str.assign("(").append((const char*)frame.method_id).append(")").c_str();
+
         default: {
             const char* type_suffix = typeSuffix(FrameType::decode(frame.bci));
 
@@ -342,6 +345,7 @@ FrameTypeId FrameName::type(ASGCT_CallFrame& frame) {
 
         case BCI_THREAD_ID:
         case BCI_ERROR:
+        case BCI_TRUFFLE:
             return FRAME_NATIVE;
 
         default:

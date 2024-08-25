@@ -240,6 +240,26 @@ int StackWalker::walkVM(void* ucontext, ASGCT_CallFrame* frames, int max_depth) 
             } else if (nm->isNMethod()) {
                 int level = nm->level();
                 FrameTypeId type = level >= 1 && level <= 3 ? FRAME_C1_COMPILED : FRAME_JIT_COMPILED;
+
+                if (nm->hasJVMCINMethodData() && nm->getJVMCINMethodData()->has_name() && depth + 1 < max_depth) {
+                    if (false) {
+                        fprintf(stderr, "FOUND JVMCINMethodData nmethod=%p level=%d jvmci_data_offset=%d data_offset=%d jvmci_data_begin=%d jvmci_data_end=%d jvmci_data_size=%d sizeof(JVMCINMethodData)=%d name=%s\n",
+                            nm,
+                            level,
+                            (int)nm->getJVMCIDataOffset(),
+                            (int)nm->getCodeBlobDataOffset(),
+                            (int)nm->getCodeBlobDataOffset() + nm->getJVMCIDataOffset(),
+                            (int)nm->getCodeBlobSize(),
+                            (int)nm->getJVMCIDataSize(),
+                            (int)sizeof(JVMCINMethodData),
+                            (nm->hasJVMCINMethodData() ? (nm->getJVMCINMethodData()->has_name() ? nm->getJVMCINMethodData()->name() : "(none)") : "n/a"));
+                    }
+                    fillFrame(frames[depth++], BCI_TRUFFLE, nm->getJVMCINMethodData()->name());
+                    //if (frame.unwindCompiled(nm, (uintptr_t&)pc, sp, fp) && profiler->isAddressInCode(pc)) {
+                    //    continue;
+                    //}
+                }
+
                 fillFrame(frames[depth++], type, 0, nm->method()->id());
 
                 if (nm->isFrameCompleteAt(pc)) {

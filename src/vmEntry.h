@@ -41,6 +41,7 @@ enum ASGCT_CallFrameType {
     BCI_PARK                = -15,  // class name of the park() blocker
     BCI_THREAD_ID           = -16,  // method_id designates a thread
     BCI_ERROR               = -17,  // method_id is an error string
+    BCI_TRUFFLE             = -18,  // JVMCI (Truffle) installed code name (char*)
 };
 
 // See hotspot/src/share/vm/prims/forte.cpp

@@ -49,6 +49,7 @@ int VMStructs::_code_offset = -1;
 int VMStructs::_data_offset = -1;
 int VMStructs::_scopes_pcs_offset = -1;
 int VMStructs::_scopes_data_offset = -1;
+int VMStructs::_nmethod_size = -1;
 int VMStructs::_nmethod_name_offset = -1;
 int VMStructs::_nmethod_method_offset = -1;
 int VMStructs::_nmethod_entry_offset = -1;
@@ -56,6 +57,7 @@ int VMStructs::_nmethod_state_offset = -1;
 int VMStructs::_nmethod_level_offset = -1;
 int VMStructs::_nmethod_metadata_offset = -1;
 int VMStructs::_nmethod_immutable_offset = -1;
+int VMStructs::_nmethod_jvmci_data_offset = -1;
 int VMStructs::_method_constmethod_offset = -1;
 int VMStructs::_method_code_offset = -1;
 int VMStructs::_constmethod_constants_offset = -1;
@@ -206,6 +208,8 @@ void VMStructs::initOffsets() {
                     _nmethod_level_offset = *(int*)(entry + offset_offset);
                 } else if (strcmp(field, "_metadata_offset") == 0) {
                     _nmethod_metadata_offset = *(int*)(entry + offset_offset);
+                    // assume _jvmci_data_offset field immediately follows _metadata_offset field
+                    _nmethod_jvmci_data_offset = *(int*)(entry + offset_offset) + 2;
                 } else if (strcmp(field, "_immutable_data") == 0) {
                     _nmethod_immutable_offset = *(int*)(entry + offset_offset);
                 } else if (strcmp(field, "_scopes_pcs_offset") == 0) {
@@ -298,6 +302,8 @@ void VMStructs::initOffsets() {
                     _data_offset = *(int*)(entry + offset_offset);
                 } else if (strcmp(field, "_name") == 0) {
                     _nmethod_name_offset = *(int*)(entry + offset_offset);
+                } else if (strcmp(field, "_size") == 0) {
+                    _nmethod_size = *(int*)(entry + offset_offset);
                 }
             } else if (strcmp(type, "CodeCache") == 0) {
                 if (strcmp(field, "_heap") == 0) {
